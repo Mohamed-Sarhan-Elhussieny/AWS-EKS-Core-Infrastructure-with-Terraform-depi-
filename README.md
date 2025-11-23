@@ -149,6 +149,130 @@ graph TB
 
 ---
 
+## 📚 Documentation
+
+### 📁 Project Structure
+
+```
+eks-terraform-infrastructure/
+├── .gitignore                  # Git ignore rules
+├── README.md                   # Project documentation
+├── provider.tf                 # AWS provider configuration
+├── Network.tf                  # VPC, subnets, IGW, route tables
+├── security-groups.tf          # Security group definitions
+├── eks-cluster.tf              # EKS cluster and add-ons configuration
+├── eks-node-group.tf           # EKS worker node group
+├── iam-ebs-csi-irsa.tf        # OIDC provider and EBS CSI driver IAM role
+├── ebs-volume.tf              # EBS volume for persistent storage
+└── output.tf                   # Terraform output values
+```
+
+### 📄 File Descriptions
+
+<table>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+<th>Key Resources</th>
+</tr>
+
+<tr>
+<td><code>provider.tf</code></td>
+<td>Configures AWS provider and required Terraform version</td>
+<td>
+• AWS Provider v6.0<br>
+• Region: us-east-1
+</td>
+</tr>
+
+<tr>
+<td><code>Network.tf</code></td>
+<td>Defines all networking infrastructure</td>
+<td>
+• VPC (10.0.0.0/16)<br>
+• 3 Public Subnets<br>
+• Internet Gateway<br>
+• Route Tables<br>
+• Route Associations
+</td>
+</tr>
+
+<tr>
+<td><code>security-groups.tf</code></td>
+<td>Security group rules for cluster and nodes</td>
+<td>
+• Ingress: 22, 80, 443, 8080, 32000, 50000<br>
+• Egress: All traffic
+</td>
+</tr>
+
+<tr>
+<td><code>eks-cluster.tf</code></td>
+<td>EKS cluster configuration and essential add-ons</td>
+<td>
+• EKS Cluster v1.34<br>
+• VPC CNI Add-on<br>
+• CoreDNS Add-on<br>
+• Kube-proxy Add-on<br>
+• Metrics Server<br>
+• EBS CSI Driver<br>
+• Pod Identity Agent
+</td>
+</tr>
+
+<tr>
+<td><code>eks-node-group.tf</code></td>
+<td>Managed node group with auto-scaling</td>
+<td>
+• Instance Type: m7i-flex.large<br>
+• AMI: AL2023_x86_64_STANDARD<br>
+• Scaling: 2-4 nodes<br>
+• Disk: 20GB
+</td>
+</tr>
+
+<tr>
+<td><code>iam-ebs-csi-irsa.tf</code></td>
+<td>IAM roles and OIDC provider for service accounts</td>
+<td>
+• OIDC Provider<br>
+• EBS CSI Driver IAM Role<br>
+• IAM Policy Attachments
+</td>
+</tr>
+
+<tr>
+<td><code>ebs-volume.tf</code></td>
+<td>Creates persistent EBS volume for Jenkins</td>
+<td>
+• Volume: 10GB gp3<br>
+• AZ: us-east-1c
+</td>
+</tr>
+
+<tr>
+<td><code>output.tf</code></td>
+<td>Defines Terraform output values</td>
+<td>
+• EKS cluster info<br>
+• EBS volume details
+</td>
+</tr>
+
+<tr>
+<td><code>.gitignore</code></td>
+<td>Specifies files Git should ignore</td>
+<td>
+• terraform.tfstate<br>
+• .terraform/<br>
+• *.tfvars<br>
+• Sensitive files
+</td>
+</tr>
+</table>
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
