@@ -1,4 +1,4 @@
- #================== OIDC Provider for EKS ==================
+#================== OIDC Provider for EKS ==================
 
 data "tls_certificate" "eks_oidc" {
   url = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
