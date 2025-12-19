@@ -25,9 +25,6 @@ resource "aws_eks_cluster" "cluster" {
     aws_internet_gateway.gateway_depi,
   ]
 
-  lifecycle {
-    ignore_changes = []
-  }
 }
 
 # ****************** EKS Add-ons ******************#
