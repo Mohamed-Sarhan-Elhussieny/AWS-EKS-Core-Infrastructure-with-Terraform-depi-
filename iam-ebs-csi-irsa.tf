@@ -1,4 +1,4 @@
-#================== OIDC Provider for EKS ==================
+# ================== OIDC Provider for EKS ==================
 
 data "tls_certificate" "eks_oidc" {
   url = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
@@ -43,3 +43,7 @@ resource "aws_iam_role" "ebs_csi_driver_role" {
   }
 }
 
+resource "aws_iam_role_policy_attachment" "node_AmazonEBSCSIDriverPolicy" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = aws_iam_role.ebs_csi_driver_role.name
+}
