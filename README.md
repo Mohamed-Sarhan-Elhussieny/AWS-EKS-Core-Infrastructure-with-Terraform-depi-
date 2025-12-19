@@ -22,9 +22,10 @@ This repository contains **Infrastructure as Code (IaC)** using Terraform to pro
 ### 🎯 What's Included
 
 ```
-✅ Custom VPC with Multi-AZ Subnets
-✅ EKS Cluster (Kubernetes 1.34)
+✅ Custom VPC with Multi-AZ Subnets (Public & Private)
+✅ EKS Cluster (Kubernetes 1.33)
 ✅ Managed Node Groups (Auto-scaling)
+✅ NAT Gateway for Private Subnet Internet Access
 ✅ Security Groups & IAM Roles
 ✅ EBS CSI Driver for Persistent Storage
 ✅ Essential EKS Add-ons
@@ -42,17 +43,19 @@ This repository contains **Infrastructure as Code (IaC)** using Terraform to pro
 ### 🌐 Networking
 - **VPC** with CIDR 10.0.0.0/16
 - **3 Public Subnets** across different AZs
+- **2 Private Subnets** for worker nodes
 - **Internet Gateway** for external connectivity
+- **NAT Gateway** for private subnet outbound traffic
 - **Route Tables** with proper associations
 
 </td>
 <td width="50%">
 
 ### 🔐 Security
-- **Security Groups** (SSH, HTTP, HTTPS, Custom Ports)
-- **IAM Roles** for Cluster & Nodes
+- **Security Groups** (SSH, HTTP, HTTPS, Jenkins, Grafana, Prometheus)
+- **IAM Roles** for Cluster, Nodes & EBS CSI
 - **OIDC Provider** for secure authentication
-- **Network isolation** between resources
+- **Network isolation** with private subnets
 
 </td>
 </tr>
@@ -60,17 +63,18 @@ This repository contains **Infrastructure as Code (IaC)** using Terraform to pro
 <td width="50%">
 
 ### ☸️ Kubernetes
-- **EKS v1.34** with latest features
+- **EKS v1.33** with latest features
 - **2-4 Worker Nodes** (Auto-scaling)
 - **6 Essential Add-ons** pre-configured
 - **m7i-flex.large** instances
+- **API_AND_CONFIG_MAP** authentication mode
 
 </td>
 <td width="50%">
 
 ### 💾 Storage
 - **EBS CSI Driver** for dynamic provisioning
-- **10GB EBS Volume** (gp3 type)
+- **IRSA (IAM Roles for Service Accounts)** enabled
 - **Persistent Volume** support
 - **Snapshot capabilities**
 
@@ -87,22 +91,23 @@ graph TB
     subgraph "AWS Cloud"
         subgraph "VPC - 10.0.0.0/16"
             IGW[Internet Gateway]
+            NAT[NAT Gateway]
+            EIP[Elastic IP]
             
-            subgraph "us-east-1a"
-                SN1[Public Subnet<br/>10.0.1.0/24]
+            subgraph "Public Subnets"
+                SN1[us-east-1a<br/>10.0.1.0/24]
+                SN2[us-east-1b<br/>10.0.2.0/24]
+                SN3[us-east-1c<br/>10.0.3.0/24]
             end
             
-            subgraph "us-east-1b"
-                SN2[Public Subnet<br/>10.0.2.0/24]
+            subgraph "Private Subnets"
+                PSN1[us-east-1a<br/>10.0.4.0/24]
+                PSN2[us-east-1b<br/>10.0.5.0/24]
             end
             
-            subgraph "us-east-1c"
-                SN3[Public Subnet<br/>10.0.3.0/24]
-                EBS[EBS Volume<br/>10GB gp3]
-            end
-            
-            subgraph "EKS Cluster v1.34"
-                NG[Node Group<br/>2-4 Nodes<br/>m7i-flex.large]
+            subgraph "EKS Cluster v1.33"
+                CP[Control Plane<br/>Public Subnets]
+                NG[Node Group<br/>Private Subnets<br/>2-4 Nodes<br/>m7i-flex.large]
                 
                 subgraph "Add-ons"
                     VPC_CNI[VPC CNI]
@@ -119,14 +124,22 @@ graph TB
     IGW --> SN1
     IGW --> SN2
     IGW --> SN3
-    SN1 --> NG
-    SN2 --> NG
-    SN3 --> NG
-    EBS --> CSI
+    EIP --> NAT
+    NAT --> SN1
+    NAT --> PSN1
+    NAT --> PSN2
+    CP --> SN1
+    CP --> SN2
+    CP --> SN3
+    PSN1 --> NG
+    PSN2 --> NG
     
     style IGW fill:#ff9900
-    style NG fill:#326ce5
-    style EBS fill:#00d4aa
+    style NAT fill:#ff6b6b
+    style CP fill:#326ce5
+    style NG fill:#00d4aa
+    style PSN1 fill:#ffd93d
+    style PSN2 fill:#ffd93d
 ```
 
 ---
@@ -136,16 +149,19 @@ graph TB
 | Resource Type | Count | Details |
 |--------------|-------|---------|
 | 🌐 **VPC** | 1 | 10.0.0.0/16 CIDR block |
-| 🔌 **Subnets** | 3 | Public subnets in 3 AZs |
+| 🔌 **Public Subnets** | 3 | In us-east-1a, 1b, 1c |
+| 🔒 **Private Subnets** | 2 | In us-east-1a, 1b (for nodes) |
 | 🚪 **Internet Gateway** | 1 | For external connectivity |
-| 📋 **Route Tables** | 1 | With IGW route + 3 associations |
-| 🔒 **Security Groups** | 1 | Ports: 22, 80, 443, 8080, 32000, 50000 |
-| ☸️ **EKS Cluster** | 1 | Kubernetes v1.34 |
-| 🖥️ **Node Groups** | 1 | 2-4 m7i-flex.large instances |
+| 🔀 **NAT Gateway** | 1 | For private subnet outbound traffic |
+| 💎 **Elastic IP** | 1 | Attached to NAT Gateway |
+| 📋 **Route Tables** | 2 | Public + Private with associations |
+| 🔒 **Security Groups** | 1 | Ports: 22, 80, 443, 3000, 9090, 32000, 50000 |
+| ☸️ **EKS Cluster** | 1 | Kubernetes v1.33 |
+| 🖥️ **Node Groups** | 1 | 2-4 m7i-flex.large instances in private subnets |
 | 🔑 **IAM Roles** | 3 | Cluster, Nodes, EBS CSI Driver |
 | 📦 **EKS Add-ons** | 6 | VPC CNI, CoreDNS, Kube-proxy, Metrics, CSI, Pod Identity |
-| 💾 **EBS Volume** | 1 | 10GB gp3 in us-east-1c |
-| 🔐 **OIDC Provider** | 1 | For service account authentication |
+| 💾 **EBS Volume** | 1 | 10GB gp3 in us-east-1c (for Jenkins) |
+| 🔐 **OIDC Provider** | 1 | For service account authentication (IRSA) |
 
 ---
 
@@ -158,12 +174,13 @@ eks-terraform-infrastructure/
 ├── .gitignore                  # Git ignore rules
 ├── README.md                   # Project documentation
 ├── provider.tf                 # AWS provider configuration
-├── Network.tf                  # VPC, subnets, IGW, route tables
+├── Network.tf                  # VPC, subnets, IGW, NAT, route tables
 ├── security-groups.tf          # Security group definitions
+├── iam_roles.tf                # IAM roles for cluster and nodes
+├── iam-ebs-csi-irsa.tf         # OIDC provider and EBS CSI driver IAM role
 ├── eks-cluster.tf              # EKS cluster and add-ons configuration
 ├── eks-node-group.tf           # EKS worker node group
-├── iam-ebs-csi-irsa.tf        # OIDC provider and EBS CSI driver IAM role
-├── ebs-volume.tf              # EBS volume for persistent storage
+├── ebs-volume.tf               # EBS volume for Jenkins persistent storage
 └── output.tf                   # Terraform output values
 ```
 
@@ -191,8 +208,10 @@ eks-terraform-infrastructure/
 <td>
 • VPC (10.0.0.0/16)<br>
 • 3 Public Subnets<br>
+• 2 Private Subnets<br>
 • Internet Gateway<br>
-• Route Tables<br>
+• NAT Gateway + Elastic IP<br>
+• Public & Private Route Tables<br>
 • Route Associations
 </td>
 </tr>
@@ -201,8 +220,30 @@ eks-terraform-infrastructure/
 <td><code>security-groups.tf</code></td>
 <td>Security group rules for cluster and nodes</td>
 <td>
-• Ingress: 22, 80, 443, 8080, 32000, 50000<br>
-• Egress: All traffic
+• Ingress: 22, 80, 443, 3000, 9090, 32000, 50000<br>
+• Egress: All traffic<br>
+• Supports Jenkins, Grafana, Prometheus
+</td>
+</tr>
+
+<tr>
+<td><code>iam_roles.tf</code></td>
+<td>IAM roles for EKS cluster and worker nodes</td>
+<td>
+• EKS Cluster Role<br>
+• EKS Node Role<br>
+• Policy Attachments (Worker, CNI, ECR)
+</td>
+</tr>
+
+<tr>
+<td><code>iam-ebs-csi-irsa.tf</code></td>
+<td>IAM roles and OIDC provider for service accounts (IRSA)</td>
+<td>
+• OIDC Provider with TLS Certificate<br>
+• EBS CSI Driver IAM Role<br>
+• IAM Policy Attachments<br>
+• Service Account Integration
 </td>
 </tr>
 
@@ -210,34 +251,27 @@ eks-terraform-infrastructure/
 <td><code>eks-cluster.tf</code></td>
 <td>EKS cluster configuration and essential add-ons</td>
 <td>
-• EKS Cluster v1.34<br>
-• VPC CNI Add-on<br>
-• CoreDNS Add-on<br>
-• Kube-proxy Add-on<br>
-• Metrics Server<br>
-• EBS CSI Driver<br>
-• Pod Identity Agent
+• EKS Cluster v1.33<br>
+• VPC CNI v1.20.4<br>
+• CoreDNS v1.12.3<br>
+• Kube-proxy v1.33.5<br>
+• Metrics Server v0.8.0<br>
+• EBS CSI Driver v1.53.0<br>
+• Pod Identity Agent v1.3.9<br>
+• API_AND_CONFIG_MAP auth mode
 </td>
 </tr>
 
 <tr>
 <td><code>eks-node-group.tf</code></td>
-<td>Managed node group with auto-scaling</td>
+<td>Managed node group with auto-scaling in private subnets</td>
 <td>
 • Instance Type: m7i-flex.large<br>
 • AMI: AL2023_x86_64_STANDARD<br>
 • Scaling: 2-4 nodes<br>
-• Disk: 20GB
-</td>
-</tr>
-
-<tr>
-<td><code>iam-ebs-csi-irsa.tf</code></td>
-<td>IAM roles and OIDC provider for service accounts</td>
-<td>
-• OIDC Provider<br>
-• EBS CSI Driver IAM Role<br>
-• IAM Policy Attachments
+• Disk: 20GB<br>
+• Capacity: ON_DEMAND<br>
+• Located in Private Subnets
 </td>
 </tr>
 
@@ -246,7 +280,8 @@ eks-terraform-infrastructure/
 <td>Creates persistent EBS volume for Jenkins</td>
 <td>
 • Volume: 10GB gp3<br>
-• AZ: us-east-1c
+• AZ: us-east-1c<br>
+• Used for Jenkins data persistence
 </td>
 </tr>
 
@@ -254,8 +289,8 @@ eks-terraform-infrastructure/
 <td><code>output.tf</code></td>
 <td>Defines Terraform output values</td>
 <td>
-• EKS cluster info<br>
-• EBS volume details
+• Jenkins volume info (ID, AZ, size, type)<br>
+• EKS cluster info (name, ARN, endpoint, version)
 </td>
 </tr>
 
@@ -270,6 +305,7 @@ eks-terraform-infrastructure/
 </td>
 </tr>
 </table>
+</table>
 
 ---
 
@@ -278,6 +314,11 @@ eks-terraform-infrastructure/
 ### Prerequisites
 
 Before you begin, ensure you have:
+
+- ✅ **Terraform** >= 1.0 installed
+- ✅ **AWS CLI** configured with credentials
+- ✅ **kubectl** installed
+- ✅ **IAM permissions** to create VPC, EKS, IAM roles
 
 ### Installation Steps
 
@@ -343,17 +384,25 @@ kubectl get pods -A
 ### VPC Configuration
 
 ```hcl
-VPC CIDR:        10.0.0.0/16
-Subnet 1 (1a):   10.0.1.0/24  [Public]
-Subnet 2 (1b):   10.0.2.0/24  [Public]
-Subnet 3 (1c):   10.0.3.0/24  [Public]
+VPC CIDR:           10.0.0.0/16
+
+Public Subnets:
+  Subnet 1 (1a):    10.0.1.0/24  [Public]
+  Subnet 2 (1b):    10.0.2.0/24  [Public]
+  Subnet 3 (1c):    10.0.3.0/24  [Public]
+
+Private Subnets:
+  Subnet 4 (1a):    10.0.4.0/24  [Private - Worker Nodes]
+  Subnet 5 (1b):    10.0.5.0/24  [Private - Worker Nodes]
 ```
 
 ### EKS Cluster Specifications
 
 | Parameter | Value |
 |-----------|-------|
-| **Kubernetes Version** | 1.34 |
+| **Kubernetes Version** | 1.33 |
+| **Authentication Mode** | API_AND_CONFIG_MAP |
+| **Bootstrap Admin** | Enabled |
 | **Instance Type** | m7i-flex.large |
 | **AMI Type** | AL2023_x86_64_STANDARD |
 | **Capacity Type** | ON_DEMAND |
@@ -361,6 +410,19 @@ Subnet 3 (1c):   10.0.3.0/24  [Public]
 | **Min Nodes** | 2 |
 | **Max Nodes** | 4 |
 | **Desired Nodes** | 2 |
+| **Node Location** | Private Subnets |
+| **Control Plane** | Public Subnets |
+
+### Add-ons Versions
+
+| Add-on | Version |
+|--------|---------|
+| VPC CNI | v1.20.4-eksbuild.1 |
+| Kube-proxy | v1.33.5-eksbuild.2 |
+| CoreDNS | v1.12.3-eksbuild.1 |
+| Metrics Server | v0.8.0-eksbuild.3 |
+| EBS CSI Driver | v1.53.0-eksbuild.1 |
+| Pod Identity Agent | v1.3.9-eksbuild.5 |
 
 ### Security Group Rules
 
@@ -369,7 +431,8 @@ Subnet 3 (1c):   10.0.3.0/24  [Public]
 | 22 | TCP | SSH Access |
 | 80 | TCP | HTTP Traffic |
 | 443 | TCP | HTTPS Traffic |
-| 8080 | TCP | Jenkins UI |
+| 3000 | TCP | Grafana Dashboard |
+| 9090 | TCP | Prometheus |
 | 32000 | TCP | NodePort Service |
 | 50000 | TCP | Jenkins Agent |
 
@@ -388,6 +451,10 @@ region = "us-east-1"
 # VPC CIDR
 vpc_cidr = "10.0.0.0/16"
 
+# Subnet CIDRs
+public_subnets  = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+private_subnets = ["10.0.4.0/24", "10.0.5.0/24"]
+
 # EKS Cluster Name
 cluster_name = "cluster"
 
@@ -398,72 +465,76 @@ max_size      = 4
 min_size      = 2
 
 # Kubernetes Version
-k8s_version = "1.34"
+k8s_version = "1.33"
 ```
-
-### 📤 Outputs
-
-After deployment, Terraform provides:
-
-```bash
-# View all outputs
-terraform output
-
-# Specific outputs
-terraform output jenkins_volume_info
-terraform output eks_cluster_info
-```
-
-**Available Outputs:**
-- `jenkins_volume_info` - EBS volume ID and availability zone
-- `eks_cluster_info` - EKS cluster name and ARN
 
 ---
 
-### Key Components
+## 🔑 Key Components
 
 <details>
 <summary><b>🌐 VPC & Networking</b></summary>
 
-- **VPC**: Custom VPC with DNS support
-- **Subnets**: 3 public subnets for high availability
-- **Internet Gateway**: Enables internet access
-- **Route Tables**: Configured with IGW routes
-- **Auto-assign Public IP**: Enabled on all subnets
+- **VPC**: Custom VPC with DNS support and DNS hostnames enabled
+- **Public Subnets**: 3 subnets for EKS control plane and NAT Gateway
+- **Private Subnets**: 2 subnets for worker nodes (enhanced security)
+- **Internet Gateway**: Enables public subnet internet access
+- **NAT Gateway**: Allows private subnet outbound internet access
+- **Elastic IP**: Static IP for NAT Gateway
+- **Route Tables**: Separate tables for public (IGW) and private (NAT) traffic
+- **Auto-assign Public IP**: Enabled on public subnets only
 
 </details>
 
 <details>
 <summary><b>☸️ EKS Cluster</b></summary>
 
-- **Authentication Mode**: API
-- **Endpoint Access**: Public
-- **Platform Version**: Latest
-- **Add-ons**: 6 essential add-ons pre-installed
+- **Kubernetes Version**: 1.33
+- **Authentication Mode**: API_AND_CONFIG_MAP (supports both methods)
+- **Bootstrap Cluster Creator**: Admin permissions enabled
+- **Endpoint Access**: Public (control plane accessible from internet)
+- **Control Plane Location**: Public subnets (multi-AZ)
+- **Platform Version**: Latest stable
+- **Add-ons**: 6 essential add-ons pre-installed with specific versions
 
 </details>
 
 <details>
 <summary><b>🔐 IAM & Security</b></summary>
 
-- **Cluster Role**: For EKS cluster operations
-- **Node Role**: For worker node operations
-- **EBS CSI Role**: For persistent volume management
-- **OIDC Provider**: For Kubernetes service accounts
+- **Cluster Role**: For EKS cluster operations with AmazonEKSClusterPolicy
+- **Node Role**: For worker node operations with Worker, CNI, and ECR policies
+- **EBS CSI Role**: For persistent volume management with IRSA
+- **OIDC Provider**: Integrated with TLS certificate for secure service account authentication
+- **Security Groups**: Configured for Jenkins, Grafana, Prometheus access
 
 </details>
 
 <details>
-<summary><b>💾 Storage</b></summary>
+<summary><b>💾 Storage & Add-ons</b></summary>
 
-- **EBS CSI Driver**: Enabled for dynamic provisioning
-- **Storage Class**: gp2/gp3 support
-- **Volume**: 10GB gp3 in us-east-1c
+- **EBS CSI Driver**: v1.53.0 with IRSA enabled for secure volume management
+- **VPC CNI**: v1.20.4 for pod networking
+- **CoreDNS**: v1.12.3 for DNS resolution
+- **Kube-proxy**: v1.33.5 for network proxying
+- **Metrics Server**: v0.8.0 for resource metrics
+- **Pod Identity Agent**: v1.3.9 for workload identity
+
+</details>
+
+<details>
+<summary><b>🏗️ Node Groups</b></summary>
+
+- **Location**: Private subnets for enhanced security
+- **Instance Type**: m7i-flex.large (AWS Graviton optimized)
+- **AMI**: Amazon Linux 2023 (AL2023_x86_64_STANDARD)
+- **Scaling**: Auto-scaling between 2-4 nodes
+- **Network**: Accesses internet via NAT Gateway
+- **Lifecycle**: No replacement on updates
 
 </details>
 
 ---
-
 
 ## 🔗 Related Resources
 
@@ -471,6 +542,7 @@ terraform output eks_cluster_info
 - 📚 [AWS EKS Documentation](https://docs.aws.amazon.com/eks/)
 - 📚 [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - 📚 [Kubernetes Documentation](https://kubernetes.io/docs/)
+- 📚 [EBS CSI Driver Documentation](https://github.com/kubernetes-sigs/aws-ebs-csi-driver)
 
 ---
 
