@@ -13,3 +13,4 @@ output "eks_cluster_info" {
     arn  = aws_eks_cluster.cluster.arn
   }
   description = "EKS cluster details"
+}
